@@ -57,6 +57,8 @@ def get_args_parser():
                         help='Use (per-patch) normalized pixels as targets for computing loss')
     parser.set_defaults(norm_pix_loss=False)
 
+    parser.add_argument('--pretrained_name', default=None, type=str, metavar='MODEL',
+                        help='Name of pretrained weights to load')
     # Optimizer parameters
     parser.add_argument('--weight_decay', type=float, default=0.05,
                         help='weight decay (default: 0.05)')
@@ -153,7 +155,8 @@ def main(args):
     )
     
     # define the model
-    model = models_mae.__dict__[args.model](norm_pix_loss=args.norm_pix_loss)
+    model = models_mae.__dict__[args.model](norm_pix_loss=args.norm_pix_loss,
+            pretrained_name=args.pretrained_name)
 
     model.to(device)
 

@@ -15,6 +15,7 @@ import torch
 import torch.nn as nn
 
 from timm.models.vision_transformer import PatchEmbed, Block
+import timm
 
 from util.pos_embed import get_2d_sincos_pos_embed
 
@@ -25,7 +26,8 @@ class MaskedAutoencoderViT(nn.Module):
     def __init__(self, img_size=224, patch_size=16, in_chans=3,
                  embed_dim=1024, depth=24, num_heads=16,
                  decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
-                 mlp_ratio=4., norm_layer=nn.LayerNorm, norm_pix_loss=False):
+                 mlp_ratio=4., norm_layer=nn.LayerNorm, norm_pix_loss=False,
+                 pretrained_name=None):
         super().__init__()
 
         # --------------------------------------------------------------------------
@@ -61,6 +63,36 @@ class MaskedAutoencoderViT(nn.Module):
         self.norm_pix_loss = norm_pix_loss
 
         self.initialize_weights()
+
+        if pretrained_name is not None:
+            # set encoder weights to timm pretrained weights
+            timm_model = timm.create_model(pretrained_name, pretrained=True)
+            state_dict = self.state_dict()
+            assert len(state_dict) == len(list(self.named_parameters()))
+            all_names = []
+            with torch.no_grad():
+                for name, param in timm_model.named_parameters():
+                    if name == "head.weight" or name == "head.bias":
+                        continue
+                    else:
+                        assert name in state_dict
+                        assert param.shape == state_dict[name].shape
+                        state_dict[name] = param
+                        all_names.append(name)
+                self.load_state_dict(state_dict)
+
+            # freeze weights
+            for name, param in self.named_parameters():                
+                assert name not in ["head.weight", "head.bias"]
+                if name in all_names:
+                    param.requires_grad = False
+
+            # sanity check to make sure there are params that don't require grad
+            count = 0
+            for name, param in self.named_parameters():
+                if not param.requires_grad:
+                    count += 1
+            assert count == len(all_names) + 1 # includes pos_embed
 
     def initialize_weights(self):
         # initialization
